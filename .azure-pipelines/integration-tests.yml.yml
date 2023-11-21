@@ -1,11 +1,12 @@
 trigger:
   branches:
     include:
-    - 'integration/*'
+      - "integration/*"
 
 pr: none
 
-pool: 'Dedicated'
+pool:
+  vmImage: ubuntu-latest
 
 resources:
   repositories:
@@ -15,14 +16,14 @@ resources:
       endpoint: github.com_frasermolyneux
 
 variables:
-  buildConfiguration: 'Release'
+  buildConfiguration: "Release"
   ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
-    nugetPackageVersion: "1.0.$(Build.BuildNumber)"
+    nugetPackageVersion: "1.1.$(Build.BuildNumber)"
   ${{ else }}:
-    nugetPackageVersion: "1.0.$(Build.BuildNumber)-preview"
+    nugetPackageVersion: "1.1.$(Build.BuildNumber)-preview"
 
-stages: 
-- template: templates/execute-ui-tests.yml
-  parameters:
-    environmentName: 'dev'
-    siteUrl: 'https://dev.geo-location.net'
+stages:
+  - template: templates/execute-ui-tests.yml
+    parameters:
+      environmentName: "dev"
+      siteUrl: "https://dev.geo-location.net"

@@ -1,78 +1,78 @@
 parameters:
-- name: dependsOn
-  type: object
-  default: []
-- name: azureSubscription
-  type: string
-- name: environment
-  type: string
-- name: environmentName
-  type: string
+  - name: dependsOn
+    type: object
+    default: []
+  - name: azureSubscription
+    type: string
+  - name: environment
+    type: string
+  - name: environmentName
+    type: string
 
 jobs:
-- deployment: validate_bicep_against_${{ parameters.environmentName }}_environment
-  dependsOn: ${{ parameters.dependsOn }}
-  environment: ${{ parameters.environment }}
+  - deployment: validate_bicep_against_${{ parameters.environmentName }}_environment
+    dependsOn: ${{ parameters.dependsOn }}
+    environment: ${{ parameters.environment }}
 
-  workspace:
-    clean: all
+    workspace:
+      clean: all
 
-  strategy:
-    runOnce:
-      deploy:
-        steps:
-          - checkout: self
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
 
-          - task: AzureCLI@2
-            name: RunPreflightValidation
-            inputs:
-              azureSubscription: ${{ parameters.azureSubscription }}
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
+            - task: AzureCLI@2
+              name: RunPreflightValidation
+              inputs:
+                azureSubscription: ${{ parameters.azureSubscription }}
+                scriptType: "pscore"
+                scriptLocation: "inlineScript"
+                inlineScript: |
+                  $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
 
-                az deployment sub validate `
-                  --name 'geolocationPlatform${{ parameters.environmentName }}' `
-                  --template-file ./bicep/platform.bicep `
-                  --location $config.parameters.parLocation.value `
-                  --parameters params/platform.${{ parameters.environmentName }}.json `
-                      parKeyVaultCreateMode='recover'
+                  az deployment sub validate `
+                    --name 'geolocationPlatform${{ parameters.environmentName }}' `
+                    --template-file ./bicep/platform.bicep `
+                    --location $config.parameters.parLocation.value `
+                    --parameters params/platform.${{ parameters.environmentName }}.json `
+                        parKeyVaultCreateMode='recover'
 
-                $keyVaults = az keyvault list --query '[].id' | ConvertFrom-Json
-                $existing = $keyVaults | where {$_ -match "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)"}
+                  $keyVaults = az keyvault list --query '[].id' | ConvertFrom-Json
+                  $existing = $keyVaults | where {$_ -match "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)"}
 
-                if ($null -ne $existing) { 
-                  az deployment group validate `
-                    --name 'geolocationServices${{ parameters.environmentName }}' `
-                    --resource-group "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)" `
-                    --template-file ./bicep/services.bicep `
-                    --parameters @params/services.${{ parameters.environmentName }}.json
-                }
+                  if ($null -ne $existing) { 
+                    az deployment group validate `
+                      --name 'geolocationServices${{ parameters.environmentName }}' `
+                      --resource-group "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)" `
+                      --template-file ./bicep/services.bicep `
+                      --parameters @params/services.${{ parameters.environmentName }}.json
+                  }
 
-          - task: AzureCLI@2
-            name: RunWhatIfDeploy
-            inputs:
-              azureSubscription: ${{ parameters.azureSubscription }}
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
+            - task: AzureCLI@2
+              name: RunWhatIfDeploy
+              inputs:
+                azureSubscription: ${{ parameters.azureSubscription }}
+                scriptType: "pscore"
+                scriptLocation: "inlineScript"
+                inlineScript: |
+                  $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
 
-                az deployment sub what-if `
-                  --name 'geolocationPlatform${{ parameters.environmentName }}' `
-                  --template-file ./bicep/platform.bicep `
-                  --location $config.parameters.parLocation.value `
-                  --parameters @params/platform.${{ parameters.environmentName }}.json `
-                      parKeyVaultCreateMode='recover'
+                  az deployment sub what-if `
+                    --name 'geolocationPlatform${{ parameters.environmentName }}' `
+                    --template-file ./bicep/platform.bicep `
+                    --location $config.parameters.parLocation.value `
+                    --parameters @params/platform.${{ parameters.environmentName }}.json `
+                        parKeyVaultCreateMode='recover'
 
-                $keyVaults = az keyvault list --query '[].id' | ConvertFrom-Json
-                $existing = $keyVaults | where {$_ -match "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)"}
+                  $keyVaults = az keyvault list --query '[].id' | ConvertFrom-Json
+                  $existing = $keyVaults | where {$_ -match "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)"}
 
-                if ($null -ne $existing) { 
-                  az deployment group what-if `
-                    --name 'geolocationServices${{ parameters.environmentName }}' `
-                    --resource-group "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)" `
-                    --template-file ./bicep/services.bicep `
-                    --parameters params/services.${{ parameters.environmentName }}.json
-                }
+                  if ($null -ne $existing) { 
+                    az deployment group what-if `
+                      --name 'geolocationServices${{ parameters.environmentName }}' `
+                      --resource-group "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)" `
+                      --template-file ./bicep/services.bicep `
+                      --parameters params/services.${{ parameters.environmentName }}.json
+                  }

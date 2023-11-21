@@ -2,13 +2,14 @@ trigger: none
 pr: none
 
 schedules:
-- cron: "0 3 * * 1"
-  displayName: Destroy Development
-  branches:
-    include:
-    - main
+  - cron: "0 3 * * 1"
+    displayName: Destroy Development
+    branches:
+      include:
+        - main
 
-pool: 'Dedicated'
+pool:
+  vmImage: ubuntu-latest
 
 resources:
   repositories:
@@ -17,24 +18,23 @@ resources:
       name: frasermolyneux/ado-pipeline-templates
       endpoint: github.com_frasermolyneux
 
-stages: 
-- stage: clean_up_dev_resources
-  jobs:
+stages:
+  - stage: clean_up_dev_resources
+    jobs:
+      - deployment: clean_up_dev_resources
+        environment: geo-location-Development
+        workspace:
+          clean: all
 
-  - deployment: clean_up_dev_resources
-    environment: geo-location-Development
-    workspace:
-      clean: all
-
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: AzureCLI@2
-            displayName: DestroyDevResources
-            inputs:
-              azureSubscription: 'spn-geo-location-development'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                Write-Host "TODO"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: AzureCLI@2
+                  displayName: DestroyDevResources
+                  inputs:
+                    azureSubscription: "spn-geo-location-development"
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      Write-Host "TODO"

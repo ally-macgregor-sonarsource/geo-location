@@ -7,59 +7,27 @@ on:
       - main
 
 permissions:
-  id-token: write # This is required for requesting the JWT
-  contents: read  # This is required for actions/checkout
-  actions: read # Required by CodeQL
-  security-events: write # Required by CodeQL
-  
+  contents: read # This is required for actions/checkout
+
+concurrency: # This is required to prevent multiple runs of the same workflow from running at the same time.
+  group: ${{ github.workflow }}
+
 jobs:
   dependency-review:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: 'Checkout Repository'
-        uses: actions/checkout@v3
-        
-      - name: 'Dependency Review'
-        uses: actions/dependency-review-action@v2
-        
+    - name: "Checkout Repository"
+      uses: actions/checkout@v3
+
+    - name: "Dependency Review"
+      uses: actions/dependency-review-action@v2
+
   dotnet-func-ci:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
-
-    - name: Set up JDK 11
-      uses: actions/setup-java@v1
-      with:
-        java-version: 1.11
-
-    - name: Cache SonarCloud packages
-      uses: actions/cache@v1
-      with:
-        path: ~\sonar\cache
-        key: ${{ runner.os }}-sonar
-        restore-keys: ${{ runner.os }}-sonar
-
-    - name: Install SonarCloud scanners
-      shell: bash
-      run: |
-        cd src
-        dotnet tool install --global dotnet-sonarscanner
-
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v2
-      with:
-        languages: 'csharp'
-
-    - name: Begin SonarScanner
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      run: |
-        cd src
-        dotnet-sonarscanner begin /k:"frasermolyneux_geo-location" /o:"frasermolyneux" /d:sonar.login="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io"
 
     - uses: frasermolyneux/actions/dotnet-web-ci@main
       with:
@@ -72,17 +40,3 @@ jobs:
         dotnet-project: "lookup-webapi"
         dotnet-version: 7.0.x
         src-folder: "src"
-
-    - name: End SonarScanner
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      run: |
-        cd src
-        dotnet-sonarscanner end /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
-
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
-      with:
-        category: "/language:'csharp'"

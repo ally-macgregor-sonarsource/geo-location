@@ -1,12 +1,20 @@
 targetScope = 'resourceGroup'
 
 // Parameters
+@description('The prefix to use for all resources in this deployment.')
 param parDeploymentPrefix string
+
+@description('The location to deploy the resources to.')
 param parLocation string
+
+@description('The name of the Key Vault to store the secrets in.')
 param parKeyVaultName string
+
+@description('The tags to apply to all resources in this deployment.')
 param parTags object
 
 // Module Resources
+@description('The storage account')
 resource storageAccount 'Microsoft.Storage/storageAccounts@2019-06-01' = {
   name: 'saad${uniqueString(resourceGroup().name)}'
   location: parLocation
@@ -18,6 +26,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2019-06-01' = {
   }
 }
 
+@description('The table services')
 resource tableServices 'Microsoft.Storage/storageAccounts/tableServices@2021-09-01' = {
   name: 'default'
   parent: storageAccount
@@ -25,6 +34,7 @@ resource tableServices 'Microsoft.Storage/storageAccounts/tableServices@2021-09-
   properties: {}
 }
 
+@description('The geo locations table')
 resource geoLocationsTable 'Microsoft.Storage/storageAccounts/tableServices/tables@2021-09-01' = {
   name: 'geolocations'
   parent: tableServices
@@ -32,13 +42,14 @@ resource geoLocationsTable 'Microsoft.Storage/storageAccounts/tableServices/tabl
   properties: {}
 }
 
+@description('Key vault secret for storage connection string')
 module keyVaultSecret 'br:acrty7og2i6qpv3s.azurecr.io/bicep/modules/keyvaultsecret:latest' = {
-  name: '${parDeploymentPrefix}-${storageAccount.name}-keyVaultSecret'
+  name: '${parDeploymentPrefix}-${storageAccount.name}-kvsecret'
 
   params: {
     parKeyVaultName: parKeyVaultName
     parSecretName: '${storageAccount.name}-connectionstring'
-    parSecretValue: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value}'
+    parSecretValue: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
     parTags: parTags
   }
 }

@@ -1,15 +1,16 @@
 trigger:
   branches:
     include:
-    - '*'
+      - "*"
     exclude:
-    - 'main'
-    - 'integration/*'
-    - 'dependabot/*'
+      - "main"
+      - "integration/*"
+      - "dependabot/*"
 
 pr: none
 
-pool: 'Dedicated'
+pool:
+  vmImage: ubuntu-latest
 
 resources:
   repositories:
@@ -19,102 +20,97 @@ resources:
       endpoint: github.com_frasermolyneux
 
 variables:
-  buildConfiguration: 'Release'
+  buildConfiguration: "Release"
   ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
-    nugetPackageVersion: "1.0.$(Build.BuildNumber)"
+    nugetPackageVersion: "1.1.$(Build.BuildNumber)"
   ${{ else }}:
-    nugetPackageVersion: "1.0.$(Build.BuildNumber)-preview"
+    nugetPackageVersion: "1.1.$(Build.BuildNumber)-preview"
 
-stages: 
-- stage: build
-  jobs:
+stages:
+  - stage: build
+    jobs:
+      #- template: jobs/dependency-check.yml@ado-pipeline-templates
+      #  parameters:
+      #    jobName: 'DependencyCheck'
+      #    failOnCVSS: 4
 
-  #- template: jobs/dependency-check.yml@ado-pipeline-templates
-  #  parameters: 
-  #    jobName: 'DependencyCheck'
-  #    failOnCVSS: 4
-  
-  - template: jobs/build-net-core-projects.yml@ado-pipeline-templates
-    parameters: 
-      jobName: 'BuildNetCoreProjects'
-      toolsManifestPath: '$(Build.SourcesDirectory)/.config/dotnet-tools.json'
-      useCobertura: true
-      buildConfiguration: $(buildConfiguration)
-      dotnetSdkVersion: '7.x'
-      additionalBuildSteps:
-      - task: DotNetCoreCLI@2
-        displayName: 'Publish public-webapp project'
-        inputs:
-          command: 'publish'
-          publishWebProjects: false
-          projects: '**/public-webapp.csproj'
-          arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/public-webapp.zip'
-      - task: DotNetCoreCLI@2
-        displayName: 'Publish lookup-webapi project'
-        inputs:
-          command: 'publish'
-          publishWebProjects: false
-          projects: '**/lookup-webapi.csproj'
-          arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/lookup-webapi.zip'
-      - task: DotNetCoreCLI@2
-        displayName: 'Pack lookup-api-client project'
-        inputs:
-          command: custom
-          custom: pack
-          arguments: >
-            $(Build.SourcesDirectory)\src\lookup-api-client\lookup-api-client.csproj --output $(Build.ArtifactStagingDirectory)/packages /p:Configuration=$(buildConfiguration) /p:PackageVersion=$(nugetPackageVersion) --verbosity Detailed
-      - task: DotNetCoreCLI@2
-        displayName: 'Pack lookup-api-abstractions project'
-        inputs:
-          command: custom
-          custom: pack
-          arguments: >
-            $(Build.SourcesDirectory)\src\lookup-api-abstractions\lookup-api-abstractions.csproj --output $(Build.ArtifactStagingDirectory)/packages /p:Configuration=$(buildConfiguration) /p:PackageVersion=$(nugetPackageVersion) --verbosity Detailed
-      additionalPublishSteps: 
-      - publish: '$(Build.artifactStagingDirectory)/public-webapp.zip'
-        displayName: 'Publish public-webapp artifact'
-        artifact: public-webapp
-      - publish: '$(Build.artifactStagingDirectory)/lookup-webapi.zip'
-        displayName: 'Publish lookup-webapi artifact'
-        artifact: lookup-webapi
-      - publish: '$(Build.artifactStagingDirectory)/packages'
-        displayName: 'Publish NuGet Packages artifact'
-        artifact: nuget-packages
+      - template: jobs/build-net-core-projects.yml@ado-pipeline-templates
+        parameters:
+          jobName: "BuildNetCoreProjects"
+          toolsManifestPath: "$(Build.SourcesDirectory)/.config/dotnet-tools.json"
+          useCobertura: true
+          buildConfiguration: $(buildConfiguration)
+          dotnetSdkVersion: "7.x"
+          additionalBuildSteps:
+            - task: DotNetCoreCLI@2
+              displayName: "Publish public-webapp project"
+              inputs:
+                command: "publish"
+                publishWebProjects: false
+                projects: "**/public-webapp.csproj"
+                arguments: "--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/public-webapp.zip"
+            - task: DotNetCoreCLI@2
+              displayName: "Publish lookup-webapi project"
+              inputs:
+                command: "publish"
+                publishWebProjects: false
+                projects: "**/lookup-webapi.csproj"
+                arguments: "--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/lookup-webapi.zip"
+            - task: DotNetCoreCLI@2
+              displayName: "Pack lookup-api-client project"
+              inputs:
+                command: custom
+                custom: pack
+                arguments: >
+                  $(Build.SourcesDirectory)\src\lookup-api-client\lookup-api-client.csproj --output $(Build.ArtifactStagingDirectory)/packages /p:Configuration=$(buildConfiguration) /p:PackageVersion=$(nugetPackageVersion) --verbosity Detailed
+            - task: DotNetCoreCLI@2
+              displayName: "Pack lookup-api-abstractions project"
+              inputs:
+                command: custom
+                custom: pack
+                arguments: >
+                  $(Build.SourcesDirectory)\src\lookup-api-abstractions\lookup-api-abstractions.csproj --output $(Build.ArtifactStagingDirectory)/packages /p:Configuration=$(buildConfiguration) /p:PackageVersion=$(nugetPackageVersion) --verbosity Detailed
+          additionalPublishSteps:
+            - publish: "$(Build.artifactStagingDirectory)/public-webapp.zip"
+              displayName: "Publish public-webapp artifact"
+              artifact: public-webapp
+            - publish: "$(Build.artifactStagingDirectory)/lookup-webapi.zip"
+              displayName: "Publish lookup-webapi artifact"
+              artifact: lookup-webapi
+            - publish: "$(Build.artifactStagingDirectory)/packages"
+              displayName: "Publish NuGet Packages artifact"
+              artifact: nuget-packages
 
-  - template: jobs/bicep-lint-code.yml@ado-pipeline-templates
-    parameters: 
-      jobName: 'bicep_linter'
-      azureSubscription: 'spn-geo-location-development'
+      - template: jobs/bicep-lint-code.yml@ado-pipeline-templates
+        parameters:
+          jobName: "bicep_linter"
+          azureSubscription: "spn-geo-location-development"
 
-  - template: templates/bicep-environment-validation.yml
+      - template: templates/bicep-environment-validation.yml
+        parameters:
+          dependsOn: [bicep_linter]
+          azureSubscription: "spn-geo-location-development"
+          environment: geo-location-Development
+          environmentName: "dev"
+
+      - template: templates/bicep-environment-validation.yml
+        parameters:
+          dependsOn: [bicep_linter]
+          azureSubscription: "spn-geo-location-production"
+          environment: geo-location-Production
+          environmentName: "prd"
+
+  - stage: push_nuget_packages
+    jobs:
+      - template: jobs/push-nuget-packages.yml@ado-pipeline-templates
+        parameters:
+          artifactName: "nuget-packages"
+
+  - template: templates/deploy-environment.yml
     parameters:
-      dependsOn: [bicep_linter]
-      azureSubscription: 'spn-geo-location-development'
+      azureSubscription: "spn-geo-location-development"
       environment: geo-location-Development
-      environmentName: 'dev'
-
-  - template: templates/bicep-environment-validation.yml
-    parameters:
-      dependsOn: [bicep_linter]
-      azureSubscription: 'spn-geo-location-production'
-      environment: geo-location-Production
-      environmentName: 'prd'
-
-- stage: push_nuget_packages
-  jobs:
-  - template: jobs/push-nuget-packages.yml@ado-pipeline-templates
-    parameters: 
-      artifactName: 'nuget-packages'
-
-- template: templates/deploy-environment.yml
-  parameters:
-    azureSubscription: 'spn-geo-location-development'
-    environment: geo-location-Development
-    environmentName: 'dev'
-    webAppsAzureSubscription: 'spn-geo-location-development'
-    webAppsEnvironment: geo-location-Development
-
-- template: templates/execute-ui-tests.yml
-  parameters:
-    environmentName: 'dev'
-    siteUrl: 'https://dev.geo-location.net'
+      environmentName: "dev"
+      webAppsAzureSubscription: "spn-geo-location-development"
+      webAppsEnvironment: geo-location-Development
+      siteUrl: "https://dev.geo-location.net"

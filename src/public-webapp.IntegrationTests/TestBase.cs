@@ -16,7 +16,9 @@ namespace MX.GeoLocation.PublicWebApp.IntegrationTests
             switch (browser)
             {
                 case "Chrome":
-                    driver = new ChromeDriver();
+                    var options = new ChromeOptions();
+                    options.AddArgument("--headless=new");
+                    driver = new ChromeDriver(options);
                     break;
                 case "Firefox":
                     driver = new FirefoxDriver();
@@ -47,6 +49,7 @@ namespace MX.GeoLocation.PublicWebApp.IntegrationTests
             {
                 driver.Quit();
             }
+            driver?.Dispose();
         }
     }
 }

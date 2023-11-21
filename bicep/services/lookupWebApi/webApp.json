@@ -1,0 +1,174 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.16.1.55165",
+      "templateHash": "16834740781706010302"
+    }
+  },
+  "parameters": {
+    "parEnvironment": {
+      "type": "string",
+      "metadata": {
+        "description": "The environment name (e.g. dev, test, prod)."
+      }
+    },
+    "parEnvironmentUniqueId": {
+      "type": "string",
+      "metadata": {
+        "description": "The environment unique identifier (e.g. 1234)."
+      }
+    },
+    "parLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "The location of the resource group."
+      }
+    },
+    "parInstance": {
+      "type": "string",
+      "metadata": {
+        "description": "The instance name (e.g. 01, 02, 03)."
+      }
+    },
+    "parKeyVaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the key vault."
+      }
+    },
+    "parAppInsightsName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the application insights resource."
+      }
+    },
+    "parAppDataStorageAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the application data storage account."
+      }
+    },
+    "parAppServicePlanName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the application service plan."
+      }
+    },
+    "parWorkloadSubscriptionId": {
+      "type": "string",
+      "metadata": {
+        "description": "The subscription id of the workload resource group."
+      }
+    },
+    "parWorkloadResourceGroupName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the workload resource group."
+      }
+    },
+    "parTags": {
+      "type": "object",
+      "metadata": {
+        "description": "The tags to apply to the resources."
+      }
+    }
+  },
+  "variables": {
+    "varWebAppName": "[format('app-geolocation-api-{0}-{1}-{2}-{3}', parameters('parEnvironment'), parameters('parLocation'), parameters('parInstance'), parameters('parEnvironmentUniqueId'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('varWebAppName')]",
+      "location": "[parameters('parLocation')]",
+      "kind": "app",
+      "tags": "[parameters('parTags')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('parAppServicePlanName'))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "ftpsState": "Disabled",
+          "alwaysOn": true,
+          "linuxFxVersion": "DOTNETCORE|7.0",
+          "netFrameworkVersion": "7.0",
+          "minTlsVersion": "1.2",
+          "appSettings": [
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName={1}-instrumentationkey)', parameters('parKeyVaultName'), parameters('parAppInsightsName'))]"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName={1}-connectionstring)', parameters('parKeyVaultName'), parameters('parAppInsightsName'))]"
+            },
+            {
+              "name": "ApplicationInsightsAgent_EXTENSION_VERSION",
+              "value": "~3"
+            },
+            {
+              "name": "ASPNETCORE_ENVIRONMENT",
+              "value": "Production"
+            },
+            {
+              "name": "WEBSITE_RUN_FROM_PACKAGE",
+              "value": "1"
+            },
+            {
+              "name": "AzureAd__TenantId",
+              "value": "[tenant().tenantId]"
+            },
+            {
+              "name": "AzureAd__Instance",
+              "value": "[environment().authentication.loginEndpoint]"
+            },
+            {
+              "name": "AzureAd__ClientId",
+              "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName=geolocation-api-{1}-clientid)', parameters('parKeyVaultName'), parameters('parEnvironment'))]"
+            },
+            {
+              "name": "AzureAd__ClientSecret",
+              "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName=geolocation-api-{1}-clientsecret)', parameters('parKeyVaultName'), parameters('parEnvironment'))]"
+            },
+            {
+              "name": "AzureAd__Audience",
+              "value": "[format('api://geolocation-api-{0}-{1}', parameters('parEnvironment'), parameters('parInstance'))]"
+            },
+            {
+              "name": "maxmind_apikey",
+              "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName=maxmind-apikey)', parameters('parKeyVaultName'))]"
+            },
+            {
+              "name": "maxmind_userid",
+              "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName=maxmind-userid)', parameters('parKeyVaultName'))]"
+            },
+            {
+              "name": "appdata_storage_connectionstring",
+              "value": "[format('@Microsoft.KeyVault(VaultName={0};SecretName={1}-connectionstring)', parameters('parKeyVaultName'), parameters('parAppDataStorageAccountName'))]"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "outWebAppDefaultHostName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('varWebAppName')), '2020-06-01').defaultHostName]"
+    },
+    "outWebAppIdentityPrincipalId": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Web/sites', variables('varWebAppName')), '2020-06-01', 'full').identity.principalId]"
+    },
+    "outWebAppName": {
+      "type": "string",
+      "value": "[variables('varWebAppName')]"
+    }
+  }
+}

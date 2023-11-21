@@ -1,203 +1,194 @@
 parameters:
-- name: azureSubscription
-  type: string
-- name: environment
-  type: string
-- name: environmentName
-  type: string
-- name: webAppsAzureSubscription
-  type: string
-- name: webAppsEnvironment
-  type: string
+  - name: azureSubscription
+    type: string
+  - name: environment
+    type: string
+  - name: environmentName
+    type: string
+  - name: webAppsAzureSubscription
+    type: string
+  - name: webAppsEnvironment
+    type: string
+  - name: siteUrl
+    type: string
 
 stages:
-- stage: deploy_${{ parameters.environmentName }}
-  jobs:
-  - deployment: deploy_${{ parameters.environmentName }}_platform_bicep
-    environment: ${{ parameters.environment }}
+  - stage: deploy_${{ parameters.environmentName }}
+    jobs:
+      - deployment: deploy_${{ parameters.environmentName }}
+        environment: ${{ parameters.environment }}
 
-    workspace:
-      clean: all
+        variables:
+          - name: SITE_URL
+            value: "${{ parameters.siteUrl }}"
 
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-            - checkout: self
+        workspace:
+          clean: all
 
-            - task: AzureCLI@2
-              displayName: deploy_${{ parameters.environmentName }}_platform_bicep
-              inputs:
-                azureSubscription: ${{ parameters.azureSubscription }}
-                scriptType: 'pscore'
-                scriptLocation: 'inlineScript'
-                inlineScript: |
-                  $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
 
-                  $deletedKeyVaults = az keyvault list-deleted --query '[].properties.vaultId' | ConvertFrom-Json
-                  $isDeleted = $deletedKeyVaults | where {$_ -match "rg-platform-vault-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)"}
+                - task: AzureCLI@2
+                  displayName: deploy_${{ parameters.environmentName }}_platform_bicep
+                  inputs:
+                    azureSubscription: ${{ parameters.azureSubscription }}
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
 
-                  $keyVaultCreateMode = "default"
-                  if ($isDeleted -ne $null) {
-                    # To allow the environments to be torn-down and re-created, the Key Vault Create Mode must be set to 'recover'.
-                    $keyVaultCreateMode = "recover"
-                  }
+                      $deletedKeyVaults = az keyvault list-deleted --query '[].properties.vaultId' | ConvertFrom-Json
+                      $isDeleted = $deletedKeyVaults | where {$_ -match "rg-platform-vault-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)"}
 
-                  az deployment sub create `
-                    --name "geolocation-platform-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)" `
-                    --template-file bicep/platform.bicep `
-                    --location $config.parameters.parLocation.value `
-                    --parameters @params/platform.${{ parameters.environmentName }}.json `
-                      parKeyVaultCreateMode=$keyVaultCreateMode
+                      $keyVaultCreateMode = "default"
+                      if ($isDeleted -ne $null) {
+                        # To allow the environments to be torn-down and re-created, the Key Vault Create Mode must be set to 'recover'.
+                        $keyVaultCreateMode = "recover"
+                      }
 
-  - job: deploy_${{ parameters.environmentName }}_platform_permissions
-    dependsOn: ['deploy_${{ parameters.environmentName }}_platform_bicep']
+                      $deploymentName = "geolocation-platform-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)"
+                      az deployment sub create `
+                        --name $deploymentName `
+                        --template-file bicep/platform.bicep `
+                        --location $config.parameters.parLocation.value `
+                        --parameters @params/platform.${{ parameters.environmentName }}.json `
+                          parKeyVaultCreateMode=$keyVaultCreateMode
 
-    workspace:
-      clean: all
+                - task: AzureCLI@2
+                  displayName: CreateAppRegistrations
+                  inputs:
+                    azureSubscription: ${{ parameters.azureSubscription }}
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
 
-    steps:
-      - task: AzureCLI@2
-        displayName: CreateAppRegistrations
-        inputs:
-          azureSubscription: ${{ parameters.azureSubscription }}
-          scriptType: 'pscore'
-          scriptLocation: 'inlineScript'
-          inlineScript: |
-            $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
+                      . "./scripts/CreateAppRegistration.ps1" `
+                          -applicationName "geolocation-api-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)" `
+                          -appRoles "lookup-api-approles.json"
 
-            . "./scripts/CreateAppRegistration.ps1" `
-                -applicationName "geolocation-api-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)" `
-                -appRoles "lookup-api-approles.json"
+                - task: AzureCLI@2
+                  displayName: CreateAppRegistrationsCredentials
+                  inputs:
+                    azureSubscription: ${{ parameters.azureSubscription }}
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
 
-      - task: AzureCLI@2
-        displayName: CreateAppRegistrationsCredentials
-        inputs:
-          azureSubscription: ${{ parameters.azureSubscription }}
-          scriptType: 'pscore'
-          scriptLocation: 'inlineScript'
-          inlineScript: |
-            $config = (Get-Content params/platform.${{ parameters.environmentName }}.json | ConvertFrom-Json)
+                      $keyVaultName = az deployment sub show --name "geolocation-platform-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)" --query properties.outputs.keyVaultName.value
 
-            $keyVaultName = az deployment sub show --name "geolocation-platform-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)" --query properties.outputs.keyVaultName.value
+                      . "./scripts/CreateAppRegistrationCredential.ps1" `
+                        -keyVaultName $keyVaultName `
+                        -applicationName "geolocation-api-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)" `
+                        -secretPrefix "geolocation-api-${{ parameters.environmentName }}" `
+                        -secretDisplayName 'publicwebapp'
 
-            . "./scripts/CreateAppRegistrationCredential.ps1" `
-              -keyVaultName $keyVaultName `
-              -applicationName "geolocation-api-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)" `
-              -secretPrefix "geolocation-api-${{ parameters.environmentName }}" `
-              -secretDisplayName 'publicwebapp'
+                - task: AzureCLI@2
+                  displayName: deploy_${{ parameters.environmentName }}_services_bicep
+                  inputs:
+                    azureSubscription: ${{ parameters.azureSubscription }}
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    addSpnToEnvironment: true
+                    inlineScript: |
+                      $config = (Get-Content params/services.${{ parameters.environmentName }}.json | ConvertFrom-Json)
 
-  - deployment: deploy_${{ parameters.environmentName }}_services_bicep
-    dependsOn: ['deploy_${{ parameters.environmentName }}_platform_permissions']
-    environment: ${{ parameters.environment }}
+                      $deploymentName = "geolocation-services-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)"
+                      $resourceGroupName = "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)"
 
-    workspace:
-      clean: all
+                      az deployment group create `
+                        --name  $deploymentName `
+                        --resource-group $resourceGroupName `
+                        --template-file bicep/services.bicep `
+                        --parameters @params/services.${{ parameters.environmentName }}.json
 
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-            - checkout: self
+                - task: AzureCLI@2
+                  name: deploy_outputs
+                  inputs:
+                    azureSubscription: ${{ parameters.azureSubscription }}
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      $config = (Get-Content params/services.${{ parameters.environmentName }}.json | ConvertFrom-Json)
 
-            - task: AzureCLI@2
-              displayName: deploy_${{ parameters.environmentName }}_services_bicep
-              inputs:
-                azureSubscription: ${{ parameters.azureSubscription }}
-                scriptType: 'pscore'
-                scriptLocation: 'inlineScript'
-                addSpnToEnvironment: true
-                inlineScript: |
-                  $config = (Get-Content params/services.${{ parameters.environmentName }}.json | ConvertFrom-Json)
+                      $deploymentOutput = (az deployment group show --name "geolocation-services-$($config.parameters.parEnvironment.value)-$($config.parameters.parInstance.value)" `
+                        --resource-group "rg-geolocation-$($config.parameters.parEnvironment.value)-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)") | ConvertFrom-Json
 
-                  az deployment group create `
-                    --name "geolocation-services-${{ parameters.environmentName }}-$($config.parameters.parInstance.value)" `
-                    --resource-group "rg-geolocation-${{ parameters.environmentName }}-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)" `
-                    --template-file bicep/services.bicep `
-                    --parameters @params/services.${{ parameters.environmentName }}.json
+                      echo "##vso[task.setvariable variable=webAppIdentityPrincipalId]$($deploymentOutput.properties.outputs.outWebAppIdentityPrincipalId.value)"
+                      echo "##vso[task.setvariable variable=webAppName]$($deploymentOutput.properties.outputs.outWebAppName.value)"
+                      echo "##vso[task.setvariable variable=webApiName]$($deploymentOutput.properties.outputs.outWebApiName.value)"
 
-  - job: post_bicep_deploy_${{ parameters.environmentName }}
-    dependsOn: ['deploy_${{ parameters.environmentName }}_services_bicep']
+                      echo "##vso[task.setvariable variable=webAppsResourceGroupName]$($config.parameters.parStrategicServices.value.WebAppsResourceGroupName)"
 
-    workspace:
-      clean: all
+                - task: AzureCLI@2
+                  displayName: SetPublicWebAppPermissions
+                  inputs:
+                    azureSubscription: ${{ parameters.azureSubscription }}
+                    scriptType: "pscore"
+                    scriptLocation: "inlineScript"
+                    inlineScript: |
+                      $config = (Get-Content params/services.${{ parameters.environmentName }}.json | ConvertFrom-Json)
 
-    steps:
-      - task: AzureCLI@2
-        name: deploy_outputs
-        inputs:
-          azureSubscription: ${{ parameters.azureSubscription }}
-          scriptType: 'pscore'
-          scriptLocation: 'inlineScript'
-          inlineScript: |
-            $config = (Get-Content params/services.${{ parameters.environmentName }}.json | ConvertFrom-Json)
+                      $apiName = "geolocation-api-$($config.parameters.parEnvironment.value)-$($config.parameters.parInstance.value)"
+                      $apiId = (az ad app list --filter "displayName eq '$apiName'" --query '[].appId') | ConvertFrom-Json
+                      $resourceId = (az ad sp list --filter "appId eq '$apiId'" --query '[0].id') | ConvertFrom-Json
+                      $apiSpn = (az rest -m GET -u https://graph.microsoft.com/v1.0/servicePrincipals/$resourceId) | ConvertFrom-Json
+                      $appRoleId = ($apiSpn.appRoles | Where-Object { $_.displayName -eq "LookupApiUser" }).id
 
-            $deploymentOutput = (az deployment group show --name "geolocation-services-$($config.parameters.parEnvironment.value)-$($config.parameters.parInstance.value)" `
-              --resource-group "rg-geolocation-$($config.parameters.parEnvironment.value)-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)") | ConvertFrom-Json
+                      $deploymentOutput = (az deployment group show --name "geolocation-services-$($config.parameters.parEnvironment.value)-$($config.parameters.parInstance.value)" `
+                        --resource-group "rg-geolocation-$($config.parameters.parEnvironment.value)-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)") | ConvertFrom-Json
 
-            echo "##vso[task.setvariable variable=webAppIdentityPrincipalId;isOutput=true]$($deploymentOutput.properties.outputs.outWebAppIdentityPrincipalId.value)"
-            echo "##vso[task.setvariable variable=webAppName;isOutput=true]$($deploymentOutput.properties.outputs.outWebAppName.value)"
-            echo "##vso[task.setvariable variable=webApiName;isOutput=true]$($deploymentOutput.properties.outputs.outWebApiName.value)"
+                      $principalId = $deploymentOutput.properties.outputs.outWebAppIdentityPrincipalId.value
+                      . "./scripts/GrantPrincipalAppRole.ps1" -principalId $principalId -resourceId $resourceId -appRoleId $appRoleId
 
-            echo "##vso[task.setvariable variable=webAppsResourceGroupName;isOutput=true]$($config.parameters.parStrategicServices.value.WebAppsResourceGroupName)"
+                - download: current
+                  artifact: lookup-webapi
 
-      - task: AzureCLI@2
-        displayName: SetPublicWebAppPermissions
-        inputs:
-          azureSubscription: ${{ parameters.azureSubscription }}
-          scriptType: 'pscore'
-          scriptLocation: 'inlineScript'
-          inlineScript: |
-            $config = (Get-Content params/services.${{ parameters.environmentName }}.json | ConvertFrom-Json)
+                - download: current
+                  artifact: public-webapp
 
-            $apiName = "geolocation-api-$($config.parameters.parEnvironment.value)-$($config.parameters.parInstance.value)"
-            $apiId = (az ad app list --filter "displayName eq '$apiName'" --query '[].appId') | ConvertFrom-Json
-            $resourceId = (az ad sp list --filter "appId eq '$apiId'" --query '[0].id') | ConvertFrom-Json
-            $apiSpn = (az rest -m GET -u https://graph.microsoft.com/v1.0/servicePrincipals/$resourceId) | ConvertFrom-Json
-            $appRoleId = ($apiSpn.appRoles | Where-Object { $_.displayName -eq "LookupApiUser" }).id
+                - task: AzureRmWebAppDeployment@4
+                  retryCountOnTaskFailure: 3
+                  inputs:
+                    azureSubscription: ${{ parameters.webAppsAzureSubscription }}
+                    webAppName: $(webApiName)
+                    resourceGroupName: $(webAppsResourceGroupName)
+                    packageForLinux: "$(Pipeline.Workspace)/lookup-webapi/lookup-webapi.zip"
 
-            $deploymentOutput = (az deployment group show --name "geolocation-services-$($config.parameters.parEnvironment.value)-$($config.parameters.parInstance.value)" `
-              --resource-group "rg-geolocation-$($config.parameters.parEnvironment.value)-$($config.parameters.parLocation.value)-$($config.parameters.parInstance.value)") | ConvertFrom-Json
+                - task: AzureRmWebAppDeployment@4
+                  retryCountOnTaskFailure: 3
+                  inputs:
+                    azureSubscription: ${{ parameters.webAppsAzureSubscription }}
+                    webAppName: $(webAppName)
+                    resourceGroupName: $(webAppsResourceGroupName)
+                    packageForLinux: "$(Pipeline.Workspace)/public-webapp/public-webapp.zip"
 
-            $principalId = $deploymentOutput.properties.outputs.outWebAppIdentityPrincipalId.value
-            . "./scripts/GrantPrincipalAppRole.ps1" -principalId $principalId -resourceId $resourceId -appRoleId $appRoleId
+            postRouteTraffic:
+              steps:
+                - checkout: self
 
-  - deployment: deploy_app_services
-    dependsOn: ['post_bicep_deploy_${{ parameters.environmentName }}']
-    environment: ${{ parameters.webAppsEnvironment }}
+                - pwsh: Invoke-WebRequest -Uri ${{ parameters.siteUrl }} -MaximumRetryCount 10 -RetryIntervalSec 5
 
-    variables: 
-      webAppName: $[ dependencies.post_bicep_deploy_${{ parameters.environmentName }}.outputs['deploy_outputs.webAppName'] ]
-      webApiName: $[ dependencies.post_bicep_deploy_${{ parameters.environmentName }}.outputs['deploy_outputs.webApiName'] ]
-      webAppsResourceGroupName: $[ dependencies.post_bicep_deploy_${{ parameters.environmentName }}.outputs['deploy_outputs.webAppsResourceGroupName'] ]
+                - task: UseDotNet@2
+                  displayName: "Use .NET SDK 7.x"
+                  inputs:
+                    version: "7.x"
 
-    workspace:
-      clean: all
+                - task: DotNetCoreCLI@2
+                  displayName: "Build the project - Release"
+                  inputs:
+                    command: "build"
+                    arguments: "--configuration Release"
+                    projects: "$(System.DefaultWorkingDirectory)/**/*.IntegrationTests.csproj"
 
-    strategy:
-      runOnce:
-        deploy:
-          steps: 
-            - checkout: self
-            
-            - download: current
-              artifact: lookup-webapi
-
-            - download: current
-              artifact: public-webapp
-
-            - task: AzureRmWebAppDeployment@4
-              retryCountOnTaskFailure: 3
-              inputs:
-                azureSubscription:  ${{ parameters.webAppsAzureSubscription }}
-                webAppName: $(webApiName)
-                resourceGroupName: $(webAppsResourceGroupName)
-                packageForLinux: '$(Pipeline.Workspace)/lookup-webapi/lookup-webapi.zip'
-
-            - task: AzureRmWebAppDeployment@4
-              retryCountOnTaskFailure: 3
-              inputs:
-                azureSubscription:  ${{ parameters.webAppsAzureSubscription }}
-                webAppName: $(webAppName)
-                resourceGroupName: $(webAppsResourceGroupName)
-                packageForLinux: '$(Pipeline.Workspace)/public-webapp/public-webapp.zip'
+                - task: DotNetCoreCLI@2
+                  displayName: "Run UI Tests"
+                  inputs:
+                    command: "test"
+                    arguments: "--no-build --configuration Release"
+                    publishTestResults: true
+                    projects: "$(System.DefaultWorkingDirectory)/**/*.IntegrationTests.csproj"

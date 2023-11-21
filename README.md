@@ -1,6 +1,13 @@
 # GeoLocation Service
 
-[![Build Status](https://dev.azure.com/frasermolyneux/Personal-Public/_apis/build/status/geo-location.OnePipeline?repoName=frasermolyneux%2Fgeo-location&branchName=main)](https://dev.azure.com/frasermolyneux/Personal-Public/_build/latest?definitionId=170&repoName=frasermolyneux%2Fgeo-location&branchName=main)
+| Stage | Status |
+| --- | --- |
+| Code Quality | [![Code Quality](https://github.com/frasermolyneux/geo-location/actions/workflows/codequality.yml/badge.svg)](https://github.com/frasermolyneux/geo-location/actions/workflows/codequality.yml) |
+| Build | [![Build Status](https://dev.azure.com/frasermolyneux/Personal-Public/_apis/build/status%2Fgeo-location.ReleaseToProduction?repoName=frasermolyneux%2Fgeo-location&branchName=main&stageName=build)](https://dev.azure.com/frasermolyneux/Personal-Public/_build/latest?definitionId=184&repoName=frasermolyneux%2Fgeo-location&branchName=main) |
+| Development | [![Build Status](https://dev.azure.com/frasermolyneux/Personal-Public/_apis/build/status%2Fgeo-location.ReleaseToProduction?repoName=frasermolyneux%2Fgeo-location&branchName=main&stageName=deploy_dev)](https://dev.azure.com/frasermolyneux/Personal-Public/_build/latest?definitionId=184&repoName=frasermolyneux%2Fgeo-location&branchName=main) |
+| Production | [![Build Status](https://dev.azure.com/frasermolyneux/Personal-Public/_apis/build/status%2Fgeo-location.ReleaseToProduction?repoName=frasermolyneux%2Fgeo-location&branchName=main&stageName=deploy_prd)](https://dev.azure.com/frasermolyneux/Personal-Public/_build/latest?definitionId=184&repoName=frasermolyneux%2Fgeo-location&branchName=main) |
+
+---
 
 ## Overview
 

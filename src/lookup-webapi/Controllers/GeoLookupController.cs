@@ -23,6 +23,8 @@ namespace MX.GeoLocation.LookupWebApi.Controllers
         private readonly ITableStorageGeoLocationRepository tableStorageGeoLocationRepository;
         private readonly IMaxMindGeoLocationRepository maxMindGeoLocationRepository;
 
+        private readonly string[] localOverrides = { "localhost", "127.0.0.1" };
+
         public GeoLookupController(
             ITableStorageGeoLocationRepository tableStorageGeoLocationRepository,
             IMaxMindGeoLocationRepository maxMindGeoLocationRepository)
@@ -51,6 +53,11 @@ namespace MX.GeoLocation.LookupWebApi.Controllers
             {
                 if (ConvertHostname(hostname, out var validatedAddress) && validatedAddress != null)
                 {
+                    if (localOverrides.Contains(hostname))
+                    {
+                        return new ApiResponseDto<GeoLocationDto>(HttpStatusCode.NotFound, "Hostname is a loopback or local address, geo location data is unavailable");
+                    }
+
                     var geoLocationDto = await tableStorageGeoLocationRepository.GetGeoLocation(validatedAddress);
 
                     if (geoLocationDto != null)
@@ -113,6 +120,12 @@ namespace MX.GeoLocation.LookupWebApi.Controllers
                 {
                     if (ConvertHostname(hostname, out var validatedAddress) && validatedAddress != null)
                     {
+                        if (localOverrides.Contains(hostname))
+                        {
+                            errors.Add("Hostname is a loopback or local address, geo location data is unavailable");
+                            continue;
+                        }
+
                         var geoLocationDto = await tableStorageGeoLocationRepository.GetGeoLocation(validatedAddress);
 
                         if (geoLocationDto != null)

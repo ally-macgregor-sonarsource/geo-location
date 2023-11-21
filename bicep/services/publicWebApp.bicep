@@ -1,35 +1,66 @@
 targetScope = 'resourceGroup'
 
 // Parameters
+@description('The environment name (e.g. dev, test, prod).')
 param parEnvironment string
+
+@description('The environment unique identifier (e.g. 1234).')
 param parEnvironmentUniqueId string
+
+@description('The location of the resource group.')
 param parLocation string
+
+@description('The instance name (e.g. 01, 02, 03).')
 param parInstance string
 
+@description('The name of the Key Vault.')
 param parKeyVaultName string
+
+@description('The name of the Application Insights resource.')
 param parAppInsightsName string
 
+@description('The subscription ID of the Front Door.')
 param parFrontDoorSubscriptionId string
+
+@description('The resource group name of the Front Door.')
 param parFrontDoorResourceGroupName string
+
+@description('The name of the Front Door.')
 param parFrontDoorName string
 
+@description('The subscription ID of the DNS.')
 param parDnsSubscriptionId string
+
+@description('The resource group name of the DNS.')
 param parDnsResourceGroupName string
+
+@description('The DNS prefix of the public web app.')
 param parPublicWebAppDnsPrefix string
+
+@description('The parent DNS name.')
 param parParentDnsName string
 
+@description('The subscription ID of the Strategic Services.')
 param parStrategicServicesSubscriptionId string
+
+@description('The resource group name of the API Management.')
 param parApiManagementResourceGroupName string
+
+@description('The name of the API Management.')
 param parApiManagementName string
+
+@description('The resource group name of the Web Apps.')
 param parWebAppsResourceGroupName string
+
+@description('The name of the App Service Plan.')
 param parAppServicePlanName string
 
+@description('The tags to apply to the resources.')
 param parTags object
 
 // Variables
-var varDeploymentPrefix = 'web-${parEnvironmentUniqueId}' //Prevent deployment naming conflicts
-
 var varWorkloadName = 'app-geolocation-web-${parEnvironment}-${parInstance}-${parEnvironmentUniqueId}'
+var varAppInsightsName = 'ai-geolocation-${parEnvironment}-${parLocation}-${parInstance}'
 
 // Existing Out-Of-Scope Resources
 @description('https://learn.microsoft.com/en-gb/azure/role-based-access-control/built-in-roles#key-vault-secrets-user')
@@ -45,7 +76,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
 
 // Module Resources
 module webApp 'publicWebApp/webApp.bicep' = {
-  name: '${varDeploymentPrefix}-webApp'
+  name: '${deployment().name}-webapp'
   scope: resourceGroup(parStrategicServicesSubscriptionId, parWebAppsResourceGroupName)
 
   params: {
@@ -55,19 +86,23 @@ module webApp 'publicWebApp/webApp.bicep' = {
     parInstance: parInstance
 
     parKeyVaultName: parKeyVaultName
-    parAppInsightsName: parAppInsightsName
     parApiManagementSubscriptionId: parStrategicServicesSubscriptionId
     parApiManagementResourceGroupName: parApiManagementResourceGroupName
     parApiManagementName: parApiManagementName
     parAppServicePlanName: parAppServicePlanName
-    parWorkloadSubscriptionId: subscription().subscriptionId
-    parWorkloadResourceGroupName: resourceGroup().name
+
+    parAppInsightsRef: {
+      Name: varAppInsightsName
+      SubscriptionId: subscription().subscriptionId
+      ResourceGroupName: resourceGroup().name
+    }
+
     parTags: parTags
   }
 }
 
 module publicWebAppKeyVaultRoleAssignment 'br:acrty7og2i6qpv3s.azurecr.io/bicep/modules/keyvaultroleassignment:latest' = {
-  name: '${varDeploymentPrefix}-publicWebAppKeyVaultRoleAssignment'
+  name: '${deployment().name}-kvwebapprole'
 
   params: {
     parKeyVaultName: parKeyVaultName
@@ -77,11 +112,11 @@ module publicWebAppKeyVaultRoleAssignment 'br:acrty7og2i6qpv3s.azurecr.io/bicep/
 }
 
 module apiManagementSubscription 'br:acrty7og2i6qpv3s.azurecr.io/bicep/modules/apimanagementsubscription:latest' = {
-  name: '${varDeploymentPrefix}-apiManagementSubscription'
+  name: '${deployment().name}-apimsubscription'
   scope: resourceGroup(parStrategicServicesSubscriptionId, parApiManagementResourceGroupName)
 
   params: {
-    parDeploymentPrefix: varDeploymentPrefix
+    parDeploymentPrefix: deployment().name
     parApiManagementName: parApiManagementName
     parWorkloadSubscriptionId: subscription().subscriptionId
     parWorkloadResourceGroupName: resourceGroup().name
@@ -94,11 +129,11 @@ module apiManagementSubscription 'br:acrty7og2i6qpv3s.azurecr.io/bicep/modules/a
 }
 
 module frontDoorEndpoint 'br:acrty7og2i6qpv3s.azurecr.io/bicep/modules/frontdoorendpoint:latest' = {
-  name: '${varDeploymentPrefix}-frontDoorEndpoint'
+  name: '${deployment().name}-webappfdendpoint'
   scope: resourceGroup(parFrontDoorSubscriptionId, parFrontDoorResourceGroupName)
 
   params: {
-    parDeploymentPrefix: varDeploymentPrefix
+    parDeploymentPrefix: deployment().name
     parFrontDoorName: parFrontDoorName
     parDnsSubscriptionId: parDnsSubscriptionId
     parDnsResourceGroupName: parDnsResourceGroupName
@@ -112,7 +147,7 @@ module frontDoorEndpoint 'br:acrty7og2i6qpv3s.azurecr.io/bicep/modules/frontdoor
 }
 
 resource webTest 'Microsoft.Insights/webtests@2022-06-15' = {
-  name: '${varDeploymentPrefix}-webTest'
+  name: '${deployment().name}-webtest'
   location: parLocation
   tags: union(parTags, {
       'hidden-link:${appInsights.id}': 'Resource'

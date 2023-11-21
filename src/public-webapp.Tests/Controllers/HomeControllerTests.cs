@@ -134,5 +134,11 @@ namespace MX.GeoLocation.PublicWebApp.Tests.Controllers
 
             viewResultGeoLocationDto.Should().BeEquivalentTo(wellFormedGeoLocationDto);
         }
+
+        [TearDown]
+        public void Cleanup()
+        {
+            homeController?.Dispose();
+        }
     }
 }
